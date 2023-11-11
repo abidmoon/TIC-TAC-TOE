@@ -1,4 +1,4 @@
-name: Build,Analyze,scan
+name: Build
 
 on:
   push:
@@ -11,28 +11,43 @@ jobs:
     name: Build
     runs-on: [self-hosted]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v2
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis 
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
   
+      - name: npm install dependency
+        run: npm install
+  
+      - name: install trivy
+        run: trivy fs . > trivyfs.txt
+  
+      - name: Docker Build and push
+        run: |
+          docker build -t tic-tac-toe .
+          docker tag tic-tac-toe moonabid/tic-tac-toe:latest
+          docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          docker push moonabid/tic-tac-toe:latest
+        env:
+          DOCKER_CLI_ACI: 1
+
+      - name: Image scan
+        run: trivy image moonabid/tic-tac-toe:latest > trivyimage.txt  
+      
+  deploy:
+    needs: build-analyze-scan   
+    runs-on: [self-hosted]
+    steps:
+      - name: docker pull image
+        run: docker pull moonabid/tic-tac-toe:latest
+      - name: Image scan
+        run: trivy image moonabid/tic-tac-toe:latest > trivyimagedeploy.txt  
       - name: Deploy to container
-        run: | 
-          docker stop game
-          docker rm game
-        
+        run: docker run -d --name gamezZ -p 4000:4000 moonabid/tic-tac-toe:latest 
       - name: Update kubeconfig
         run: aws eks --region ap-south-1 update-kubeconfig --name EKS_CLOUD
-
-      - name: Deploy to kubernetes
-        run: kubectl delete -f deployment-service.yml
-  
-      - name: Send a Slack Notification
-        if: always()
-        uses: act10ns/slack@v1
-        with:
-          status: ${{ job.status }}
-          steps: ${{ toJson(steps) }}
-          channel: '#githubactions-eks'
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: Deploy to EKS
+        run: kubectl apply -f deployment-service.yml
