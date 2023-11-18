@@ -25,7 +25,7 @@ jobs:
       - name: npm install dependency
         run: npm install
 
-      - name: Trivy file scan
+      - name: install trivy
         run: trivy fs . > trivyfs.txt
 
       - name: Docker Build and push
@@ -51,7 +51,7 @@ jobs:
         run: trivy image moonabid/tic-tac-toe:latest > trivyimagedeploy.txt  
   
       - name: Deploy to container
-        run: docker run -d --name game -p 3000:3000 sevenajay/tic-tac-toe:latest
+        run: docker run -d --name game -p 3000:3000 moonabid/tic-tac-toe:latest
 
       - name: Update kubeconfig
         run: aws eks --region ap-south-1 update-kubeconfig --name EKS_CLOUD
