@@ -17,7 +17,7 @@ jobs:
        
       - name: Deploy to container
         run: |
-         docker stop --name games
+         docker stop games
          docker rm games
       - name: Update kubeconfig
         run: aws eks --region ap-south-1 update-kubeconfig --name EKS_CLOUD
